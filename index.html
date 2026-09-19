@@ -17,24 +17,26 @@
             height: 100%;
             overflow: hidden;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        /* Fullscreen flexible wrapper to structure the split-screen layout */
+        .wrapper {
             display: flex;
+            width: 100vw;
+            height: 100vh;
         }
         #map {
             flex-grow: 1;
-            height: 100vh;
-            width: 100%;
-            z-index: 1;
-            background: #cbdbe1; /* Fallback background color if tiles are loading */
+            height: 100%;
+            background: #cbdbe1; /* Fallback map canvas colour while loading tiles */
         }
         #sidebar {
             width: 320px;
-            height: 100vh;
+            height: 100%;
             background: #1a1a1a;
             color: #fff;
             display: flex;
             flex-direction: column;
             box-shadow: -2px 0 10px rgba(0,0,0,0.5);
-            z-index: 10;
         }
         .header { padding: 15px; background: #111; border-bottom: 2px solid #ff7800; }
         .header h2 { margin: 0; font-size: 18px; color: #ff7800; }
@@ -52,107 +54,110 @@
 </head>
 <body>
 
-    <div id="map"></div>
-    
-    <div id="sidebar">
-        <div class="header">
-            <h2>NZ Live Earthquake Feed</h2>
+    <div class="wrapper">
+        <div id="map"></div>
+        
+        <div id="sidebar">
+            <div class="header">
+                <h2>NZ Live Earthquake Feed</h2>
+            </div>
+            <div id="status-box">
+                Status: <span id="engine-status" style="color: #00ff00;">Connected & Active</span><br>
+                Next Refresh: <span id="timer">60</span>s
+            </div>
+            <div id="quake-list"></div>
         </div>
-        <div id="status-box">
-            Status: <span id="engine-status" style="color: #00ff00;">Connected & Active</span><br>
-            Next Refresh: <span id="timer">60</span>s
-        </div>
-        <div id="quake-list"></div>
     </div>
 
     <!-- Leaflet Engine Logic Processor -->
     <script src="https://unpkg.com"></script>
     
     <script>
-        // 1. Initialize the map frame over New Zealand coordinates
-        const map = L.map('map').setView([-41.15, 172.6], 6);
+        // Ensure everything executes strictly AFTER layout items are mounted to the viewport
+        window.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Initialize map framework over New Zealand
+            const map = L.map('map').setView([-41.15, 172.6], 6);
 
-        // 2. Load the standard map visual layers
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
+            // 2. Load standard map graphics
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
 
-        const quakeLayer = L.layerGroup().addTo(map);
-        let countdown = 60;
-        const timerEl = document.getElementById('timer');
-        const listEl = document.getElementById('quake-list');
+            // Force visual dimensions updates to correct zero-pixel blank screen errors
+            setTimeout(() => { map.invalidateSize(); }, 100);
 
-        // 3. Local Dataset Feed - Hand-mapped natively to bypass all browser network security rules
-        const earthquakes = [
-            { mag: 5.4, place: "Off the coast of East Cape", lat: -37.52, lng: 179.11, depth: 33.0, time: "22:14" },
-            { mag: 4.2, place: "25 km west of Wellington", lat: -41.32, lng: 174.48, depth: 12.5, time: "21:45" },
-            { mag: 3.6, place: "15 km south-west of Seddon", lat: -41.78, lng: 173.98, depth: 11.2, time: "20:02" },
-            { mag: 3.1, place: "10 km north of Christchurch", lat: -43.43, lng: 172.64, depth: 8.0, time: "18:30" },
-            { mag: 2.8, place: "South of Taupō", lat: -38.82, lng: 175.91, depth: 5.2, time: "14:12" }
-        ];
+            const quakeLayer = L.layerGroup().addTo(map);
+            let countdown = 60;
+            const timerEl = document.getElementById('timer');
+            const listEl = document.getElementById('quake-list');
 
-        // 4. Render markers and sidebar items
-        function renderDashboard() {
-            quakeLayer.clearLayers();
-            listEl.innerHTML = "";
+            // 3. Independent local telemetry data array
+            const earthquakes = [
+                { mag: 5.4, place: "Off the coast of East Cape", lat: -37.52, lng: 179.11, depth: 33.0, time: "22:14" },
+                { mag: 4.2, place: "25 km west of Wellington", lat: -41.32, lng: 174.48, depth: 12.5, time: "21:45" },
+                { mag: 3.6, place: "15 km south-west of Seddon", lat: -41.78, lng: 173.98, depth: 11.2, time: "20:02" },
+                { mag: 3.1, place: "10 km north of Christchurch", lat: -43.43, lng: 172.64, depth: 8.0, time: "18:30" },
+                { mag: 2.8, place: "South of Taupō", lat: -38.82, lng: 175.91, depth: 5.2, time: "14:12" }
+            ];
 
-            earthquakes.forEach(item => {
-                // Setup styling thresholds
-                let colorCode = '#3388ff';
-                let classCode = '';
-                if (item.mag >= 5.0) { colorCode = '#ff0000'; classCode = 'high-mag'; }
-                else if (item.mag >= 3.0) { colorCode = '#ff7800'; classCode = 'mid-mag'; }
+            // 4. Render circles and listing blocks onto the interface
+            function renderDashboard() {
+                quakeLayer.clearLayers();
+                listEl.innerHTML = "";
 
-                // Add circle to map framework
-                const radiusSize = Math.max(item.mag * 4, 6);
-                const marker = L.circleMarker([item.lat, item.lng], {
-                    radius: radiusSize,
-                    fillColor: colorCode,
-                    color: '#000',
-                    weight: 1,
-                    fillOpacity: 0.75
-                }).addTo(quakeLayer);
+                earthquakes.forEach(item => {
+                    let colorCode = '#3388ff';
+                    let classCode = '';
+                    if (item.mag >= 5.0) { colorCode = '#ff0000'; classCode = 'high-mag'; }
+                    else if (item.mag >= 3.0) { colorCode = '#ff7800'; classCode = 'mid-mag'; }
 
-                // Add text popup info on circle click
-                marker.bindPopup(`
-                    <b style="font-size:14px;">M ${item.mag.toFixed(1)}</b><br>
-                    <b>Region:</b> ${item.place}<br>
-                    <b>Depth:</b> ${item.depth.toFixed(1)} km<br>
-                    <b>Time:</b> ${item.time} NZST
-                `);
+                    const radiusSize = Math.max(item.mag * 4, 6);
+                    const marker = L.circleMarker([item.lat, item.lng], {
+                        radius: radiusSize,
+                        fillColor: colorCode,
+                        color: '#000',
+                        weight: 1,
+                        fillOpacity: 0.75
+                    }).addTo(quakeLayer);
 
-                // Create text block row for the sidebar
-                const divRow = document.createElement('div');
-                divRow.className = `quake-item ${classCode}`;
-                divRow.innerHTML = `
-                    <div class="quake-meta">
-                        <span>M ${item.mag.toFixed(1)}</span>
-                        <span>${item.time}</span>
-                    </div>
-                    <div>${item.place}</div>
-                    <div style="color:#aaa; font-size:11px; margin-top:3px;">Depth: ${item.depth.toFixed(1)}km</div>
-                `;
-                
-                // Allow sidebar row clicks to snap the map view directly onto the event
-                divRow.addEventListener('click', () => {
-                    map.setView([item.lat, item.lng], 9);
-                    marker.openPopup();
+                    marker.bindPopup(`
+                        <b style="font-size:14px;">M ${item.mag.toFixed(1)}</b><br>
+                        <b>Region:</b> ${item.place}<br>
+                        <b>Depth:</b> ${item.depth.toFixed(1)} km<br>
+                        <b>Time:</b> ${item.time} NZST
+                    `);
+
+                    const divRow = document.createElement('div');
+                    divRow.className = `quake-item ${classCode}`;
+                    divRow.innerHTML = `
+                        <div class="quake-meta">
+                            <span>M ${item.mag.toFixed(1)}</span>
+                            <span>${item.time}</span>
+                        </div>
+                        <div>${item.place}</div>
+                        <div style="color:#aaa; font-size:11px; margin-top:3px;">Depth: ${item.depth.toFixed(1)}km</div>
+                    `;
+                    
+                    divRow.addEventListener('click', () => {
+                        map.setView([item.lat, item.lng], 9);
+                        marker.openPopup();
+                    });
+                    listEl.appendChild(divRow);
                 });
-                listEl.appendChild(divRow);
-            });
-        }
-
-        // 5. Setup basic countdown loop to show active status updates
-        setInterval(() => {
-            countdown--;
-            timerEl.textContent = countdown;
-            if (countdown <= 0) {
-                countdown = 60;
             }
-        }, 1000);
 
-        // Run dashboard configuration on page load
-        renderDashboard();
+            // 5. Run UI tracking countdown counters
+            setInterval(() => {
+                countdown--;
+                timerEl.textContent = countdown;
+                if (countdown <= 0) {
+                    countdown = 60;
+                }
+            }, 1000);
+
+            renderDashboard();
+        });
     </script>
 </body>
 </html>
