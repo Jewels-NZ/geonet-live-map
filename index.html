@@ -82,7 +82,7 @@
         const statusEl = document.getElementById('engine-status');
         const listEl = document.getElementById('quake-list');
 
-        // HARDCODED BACKUP DATA SET: Ensures layout maps instantly even if your browser blocks the live API fetch
+        // HARDCODED BACKUP DATA SET
         const backupQuakes = [
             { mag: 4.2, place: "25 km west of Wellington", lat: -41.32, lng: 174.48, depth: 12.5, time: "Recent (Backup)" },
             { mag: 3.1, place: "10 km north of Christchurch", lat: -43.43, lng: 172.64, depth: 8.0, time: "Recent (Backup)" },
@@ -98,20 +98,19 @@
                 let mag, locality, latValue, lngValue, depth, timeString;
 
                 if (isUsingLiveAPI) {
-                    // Mapping standard USGS GeoJSON geometry layers securely
+                    // FIXED: Using array duplicate shifting methods to bypass the code stripping glitch entirely
+                    const coords = Array.from(item.geometry.coordinates);
+                    lngValue = parseFloat(coords.shift());
+                    latValue = parseFloat(coords.shift());
+                    depth = parseFloat(coords.shift());
+                    
                     mag = parseFloat(item.properties.mag);
                     locality = item.properties.place;
                     timeString = new Date(item.properties.time).toLocaleTimeString('en-NZ', {hour: '2-digit', minute:'2-digit'});
-                    
-                    const coords = item.geometry.coordinates;
-                    lngValue = parseFloat(coords[0]);
-                    latValue = parseFloat(coords[1]);
-                    depth = parseFloat(coords[2]);
 
-                    // Narrowing bounding limits to show only New Zealand earthquakes
+                    // Bounds configuration mapping filter
                     if (latValue < -48 || latValue > -34 || lngValue < 164 || lngValue > 179) return;
                 } else {
-                    // Extracting from fallback arrays natively
                     mag = item.mag;
                     locality = item.place;
                     latValue = item.lat;
@@ -170,22 +169,20 @@
                 if (!response.ok) throw new Error("API Offline");
 
                 const data = await response.json();
-                
                 processAndRenderMarkers(data.features, true);
 
                 statusEl.textContent = "Connected & Active";
                 statusEl.style.color = "#00ff00";
 
             } catch (err) {
-                // FALLBACK ACTIVATION: Activates backup mode if local web security restrictions cause an API fail
-                console.warn("API restricted. Switching instantly to fallback display stream.", err);
+                console.warn("API restricted. Switching to fallback mode.", err);
                 processAndRenderMarkers(backupQuakes, false);
                 statusEl.textContent = "Active (Demo Mode)";
                 statusEl.style.color = "#ffaa00";
             }
         }
 
-        // Initialize clock down logic loops
+        // Timer loops
         setInterval(() => {
             countdown--;
             timerEl.textContent = countdown;
@@ -199,3 +196,4 @@
     </script>
 </body>
 </html>
+
