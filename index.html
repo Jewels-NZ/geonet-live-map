@@ -1,10 +1,11 @@
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live GeoNet Earthquake Monitor</title>
+    <title>Live New Zealand Earthquake Monitor</title>
     <!-- Leaflet Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <style>
@@ -34,7 +35,7 @@
     
     <div id="sidebar">
         <div class="header">
-            <h2>GeoNet Live Feed</h2>
+            <h2>NZ Live Earthquake Feed</h2>
         </div>
         <div id="status-box">
             Status: <span id="engine-status" style="color: #ffea00;">Loading...</span><br>
@@ -46,10 +47,10 @@
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com"></script>
     <script>
-        // Initialize map frame
+        // Frame the view across New Zealand coordinates
         const map = L.map('map').setView(L.latLng(-41.15, 172.6), 6);
 
-        // Load map visual tiles
+        // Load OpenStreetMap Base Layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
@@ -62,45 +63,42 @@
 
         async function fetchEarthquakeData() {
             try {
-                statusEl.textContent = "Connecting Securely...";
+                statusEl.textContent = "Syncing Feed...";
                 statusEl.style.color = "#ffea00";
 
-                // FIXED: Routing request via public proxy to defeat browser CORS blocking mechanics
-                const targetUrl = 'https://geonet.org.nz';
-                const proxyUrl = 'https://allorigins.win' + encodeURIComponent(targetUrl);
+                // Pulling real-time global datasets scoped to NZ bounding parameters (native CORS support)
+                const globalFeedUrl = 'https://usgs.gov';
+                const response = await fetch(globalFeedUrl);
+                if (!response.ok) throw new Error("Network response error");
 
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error("Proxy connection failed.");
-
-                const proxyData = await response.json();
-                // Parse the nested text string returned by the proxy into a clean JSON structure
-                const data = JSON.parse(proxyData.contents);
+                const data = await response.json();
                 
                 quakeLayer.clearLayers();
                 listEl.innerHTML = "";
 
-                if (!data.features || data.features.length === 0) {
-                    statusEl.textContent = "No Events Found";
-                    return;
-                }
+                let localizedCount = 0;
 
                 data.features.forEach(quake => {
                     const props = quake.properties;
                     const geom = quake.geometry;
                     if (!geom || !geom.coordinates) return;
 
-                    const mag = props.magnitude;
-                    const locality = props.locality;
-                    const depth = props.depth;
-                    const time = new Date(props.time).toLocaleTimeString('en-NZ', {hour: '2-digit', minute:'2-digit'});
-
-                    // Extract coordinates safely
+                    // Extract location indexes natively without standard bracket calls
                     const lngValue = parseFloat(geom.coordinates.at(0));
                     const latValue = parseFloat(geom.coordinates.at(1));
+                    const depth = parseFloat(geom.coordinates.at(2));
+                    const mag = props.mag;
 
-                    if (isNaN(latValue) || isNaN(lngValue)) return;
+                    // Strictly filter array bounds to display only New Zealand regional events
+                    if (latValue < -48 || latValue > -34 || lngValue < 164 || lngValue > 179) return;
+                    
+                    localizedCount++;
 
-                    // Compute weights
+                    // Format Time configuration
+                    const time = new Date(props.time).toLocaleTimeString('en-NZ', {hour: '2-digit', minute:'2-digit'});
+                    const locality = props.place;
+
+                    // Set styling values
                     let colorCode = '#3388ff';
                     let classCode = '';
                     if (mag >= 5.0) { colorCode = '#ff0000'; classCode = 'high-mag'; }
@@ -118,13 +116,13 @@
 
                     marker.bindPopup(`
                         <b style="font-size:14px;">M ${mag.toFixed(1)}</b><br>
-                        <b>Locality:</b> ${locality}<br>
+                        <b>Region:</b> ${locality}<br>
                         <b>Depth:</b> ${depth.toFixed(1)} km<br>
                         <b>Time:</b> ${time}
                     `);
                     quakeLayer.addLayer(marker);
 
-                    // Map listing items to list view container
+                    // Build Sidebar blocks
                     const item = document.createElement('div');
                     item.className = `quake-item ${classCode}`;
                     item.innerHTML = `
@@ -143,17 +141,22 @@
                     listEl.appendChild(item);
                 });
 
-                statusEl.textContent = "Connected & Active";
-                statusEl.style.color = "#00ff00";
+                if (localizedCount === 0) {
+                    statusEl.textContent = "Quiet (No quakes today)";
+                    statusEl.style.color = "#00ff00";
+                } else {
+                    statusEl.textContent = "Connected & Active";
+                    statusEl.style.color = "#00ff00";
+                }
 
             } catch (err) {
-                statusEl.textContent = "Error: Connection Refused";
+                statusEl.textContent = "Offline Mode";
                 statusEl.style.color = "#ff0000";
                 console.error(err);
             }
         }
 
-        // Timer control
+        // Loop counter setup
         setInterval(() => {
             countdown--;
             timerEl.textContent = countdown;
