@@ -4,14 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live New Zealand Earthquake Monitor</title>
-    <!-- Leaflet Map CSS -->
-    <link rel="stylesheet" href="https://unpkg.com" />
+    
+    <!-- Leaflet Engine Style Sheet Sheet -->
+    <link rel="stylesheet" href="https://unpkg.com" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; }
-        #map { flex-grow: 1; height: 100%; z-index: 1; }
+        /* CRITICAL FIX: Explicit viewport settings to force the map to render visibly on the page */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+        }
+        #map {
+            flex-grow: 1;
+            height: 100vh;
+            width: 100%;
+            z-index: 1;
+        }
         #sidebar {
-            width: 320px; height: 100%; background: #1a1a1a; color: #fff;
-            display: flex; flex-direction: column; box-shadow: -2px 0 10px rgba(0,0,0,0.5); z-index: 10;
+            width: 320px;
+            height: 100vh;
+            background: #1a1a1a;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.5);
+            z-index: 10;
         }
         .header { padding: 15px; background: #111; border-bottom: 2px solid #ff7800; }
         .header h2 { margin: 0; font-size: 18px; color: #ff7800; }
@@ -42,15 +64,16 @@
         <div id="quake-list"></div>
     </div>
 
-    <!-- Leaflet Map JS -->
-    <script src="https://unpkg.com"></script>
+    <!-- Leaflet Engine Logic Processor -->
+    <script src="https://unpkg.com" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
     <script>
-        // Frame the view across New Zealand coordinates
-        const map = L.map('map').setView(L.latLng(-41.15, 172.6), 6);
+        // Set up map viewpoint canvas frame over the center of New Zealand
+        const map = L.map('map').setView([-41.15, 172.6], 6);
 
-        // Load OpenStreetMap Base Layer
+        // Populate base tracking grid using OpenStreetMap tile references
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
+            attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const quakeLayer = L.layerGroup().addTo(map);
@@ -61,13 +84,13 @@
 
         async function fetchEarthquakeData() {
             try {
-                statusEl.textContent = "Syncing Feed...";
+                statusEl.textContent = "Updating map...";
                 statusEl.style.color = "#ffea00";
 
-                // Pulling real-time global datasets scoped to NZ bounding parameters (native CORS support)
+                // Query the reliable USGS open data sync mirror endpoint
                 const globalFeedUrl = 'https://usgs.gov';
                 const response = await fetch(globalFeedUrl);
-                if (!response.ok) throw new Error("Network response error");
+                if (!response.ok) throw new Error("Connection failed");
 
                 const data = await response.json();
                 
@@ -81,30 +104,29 @@
                     const geom = quake.geometry;
                     if (!geom || !geom.coordinates) return;
 
-                    // Extract location indexes natively without standard bracket calls
-                    const lngValue = parseFloat(geom.coordinates.at(0));
-                    const latValue = parseFloat(geom.coordinates.at(1));
-                    const depth = parseFloat(geom.coordinates.at(2));
+                    // Pull location records out using programmatic array offset mapping
+                    const locationDataArray = geom.coordinates;
+                    const lngValue = parseFloat(locationDataArray[0]);
+                    const latValue = parseFloat(locationDataArray[1]);
+                    const depth = parseFloat(locationDataArray[2]);
                     const mag = props.mag;
 
-                    // Strictly filter array bounds to display only New Zealand regional events
+                    // Bound checks to isolate New Zealand tracking space specifically
                     if (latValue < -48 || latValue > -34 || lngValue < 164 || lngValue > 179) return;
                     
                     localizedCount++;
 
-                    // Format Time configuration
+                    // Format regional timestamps
                     const time = new Date(props.time).toLocaleTimeString('en-NZ', {hour: '2-digit', minute:'2-digit'});
                     const locality = props.place;
 
-                    // Set styling values
                     let colorCode = '#3388ff';
                     let classCode = '';
                     if (mag >= 5.0) { colorCode = '#ff0000'; classCode = 'high-mag'; }
                     else if (mag >= 3.0) { colorCode = '#ff7800'; classCode = 'mid-mag'; }
 
                     const radiusSize = Math.max(mag * 3.5, 6);
-                    const markerLocation = L.latLng(latValue, lngValue);
-                    const marker = L.circleMarker(markerLocation, {
+                    const marker = L.circleMarker([latValue, lngValue], {
                         radius: radiusSize,
                         fillColor: colorCode,
                         color: '#000',
@@ -120,7 +142,7 @@
                     `);
                     quakeLayer.addLayer(marker);
 
-                    // Build Sidebar blocks
+                    // Inject tracking block rows to dashboard sidebar
                     const item = document.createElement('div');
                     item.className = `quake-item ${classCode}`;
                     item.innerHTML = `
@@ -133,7 +155,7 @@
                     `;
                     
                     item.addEventListener('click', () => {
-                        map.setView(L.latLng(latValue, lngValue), 9);
+                        map.setView([latValue, lngValue], 9);
                         marker.openPopup();
                     });
                     listEl.appendChild(item);
@@ -148,13 +170,13 @@
                 }
 
             } catch (err) {
-                statusEl.textContent = "Offline Mode";
+                statusEl.textContent = "Sync Offline";
                 statusEl.style.color = "#ff0000";
                 console.error(err);
             }
         }
 
-        // Loop counter setup
+        // Initialize background network execution cycles
         setInterval(() => {
             countdown--;
             timerEl.textContent = countdown;
