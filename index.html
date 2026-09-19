@@ -38,7 +38,7 @@
 
         async function fetchQuakes() {
             try {
-                // Fetch the latest active earthquakes from GeoNet API
+                // Fetch the latest earthquakes from GeoNet API
                 const response = await fetch('https://geonet.org.nz');
                 const data = await response.json();
                 
@@ -47,16 +47,14 @@
 
                 data.features.forEach(quake => {
                     const mag = quake.properties.magnitude;
-                    const coords = quake.geometry.coordinates; // [longitude, latitude, depth]
                     const time = new Date(quake.properties.time).toLocaleString('en-NZ');
                     const depth = quake.properties.depth.toFixed(1);
                     const locality = quake.properties.locality;
 
-                    // FIXED: Properly extracting longitude [0] and latitude [1]
-                    const lng = coords[0];
-                    const lat = coords[1];
+                    // FIXED: Using destructuring to safely extract [longitude, latitude]
+                    const [lng, lat] = quake.geometry.coordinates;
 
-                    // Guard against broken records
+                    // Guard against missing data
                     if (!lat || !lng) return;
 
                     // Calculate marker size based on magnitude
