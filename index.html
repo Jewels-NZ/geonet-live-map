@@ -50,13 +50,13 @@
                     const depth = quake.properties.depth.toFixed(1);
                     const locality = quake.properties.locality;
 
-                    // Leaflet needs [Latitude, Longitude] -> coords[1] is Lat, coords[0] is Lng
+                    // FIXED: Properly extracting longitude [0] and latitude [1]
                     const lat = coords[1];
                     const lng = coords[0];
 
-                    // Don't map broken or missing coordinates
                     if (!lat || !lng) return;
 
+                    // Ensure tiny quakes remain visible as clickable dots
                     const markerRadius = Math.max(mag * 3, 5);
 
                     const marker = L.circleMarker([lat, lng], {
