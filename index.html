@@ -4,10 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Live GeoNet All Earthquakes Map</title>
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: Arial, sans-serif; }
-        #map { height: 100%; width: 100%; }
+        #map { height: 100%; width: 100%; z-index: 1; }
         #status {
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: white; padding: 10px; border-radius: 5px;
@@ -20,10 +21,13 @@
     <div id="status">Updating in <span id="countdown">60</span>s...</div>
     <div id="map"></div>
 
+    <!-- Leaflet JavaScript -->
     <script src="https://unpkg.com"></script>
     <script>
+        // Initialize the map centered on New Zealand
         const map = L.map('map').setView([-41.0, 174.0], 6);
 
+        // Add map tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
@@ -41,15 +45,21 @@
 
                 data.features.forEach(quake => {
                     const mag = quake.properties.magnitude;
-                    const coords = quake.geometry.coordinates;
+                    const coords = quake.geometry.coordinates; // [longitude, latitude, depth]
                     const time = new Date(quake.properties.time).toLocaleString('en-NZ');
                     const depth = quake.properties.depth.toFixed(1);
                     const locality = quake.properties.locality;
 
-                    // Dynamically size markers so tiny quakes don't disappear completely
-                    const markerRadius = Math.max(mag * 3, 4);
+                    // Leaflet needs [Latitude, Longitude] -> coords[1] is Lat, coords[0] is Lng
+                    const lat = coords[1];
+                    const lng = coords[0];
 
-                    const marker = L.circleMarker([coords[1], coords[0]], {
+                    // Don't map broken or missing coordinates
+                    if (!lat || !lng) return;
+
+                    const markerRadius = Math.max(mag * 3, 5);
+
+                    const marker = L.circleMarker([lat, lng], {
                         radius: markerRadius,
                         fillColor: mag >= 5 ? '#ff0000' : mag >= 3 ? '#ff7800' : '#3388ff',
                         color: '#000',
@@ -72,6 +82,7 @@
             }
         }
 
+        // Countdown timer
         setInterval(() => {
             countdown--;
             countdownEl.textContent = countdown;
@@ -81,6 +92,7 @@
             }
         }, 1000);
 
+        // Load immediately on page open
         fetchQuakes();
     </script>
 </body>
