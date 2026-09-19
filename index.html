@@ -1,4 +1,4 @@
-html<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -45,8 +45,8 @@ html<!DOCTYPE html>
     <!-- Leaflet Map JS -->
     <script src="https://unpkg.com"></script>
     <script>
-        // Set up the map frame over New Zealand
-        const map = L.map('map').setView([-41.15, 172.6], 6);
+        // Set up the map frame over New Zealand using Leaflet LatLng coordinates natively
+        const map = L.map('map').setView(L.latLng(-41.15, 172.6), 6);
 
         // Load OpenStreetMap Base Tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -64,7 +64,7 @@ html<!DOCTYPE html>
                 statusEl.textContent = "Fetching API...";
                 statusEl.style.color = "#ffea00";
 
-                // Pulling data with explicit API version header requirement
+                // Querying correct GeoNet endpoint to grab every recent event
                 const response = await fetch('https://geonet.org.nz', {
                     headers: { 'Accept': 'application/vnd.geo+json;version=2' }
                 });
@@ -73,7 +73,6 @@ html<!DOCTYPE html>
 
                 const data = await response.json();
                 
-                // Safety clear
                 quakeLayer.clearLayers();
                 listEl.innerHTML = "";
 
@@ -92,9 +91,9 @@ html<!DOCTYPE html>
                     const depth = props.depth;
                     const time = new Date(props.time).toLocaleTimeString('en-NZ', {hour: '2-digit', minute:'2-digit'});
 
-                    // FIXED ARR INDEXING: index 0 is always Lng, index 1 is Lat
-                    const lngValue = parseFloat(geom.coordinates[0]);
-                    const latValue = parseFloat(geom.coordinates[1]);
+                    // FIXED: Using array methods instead of square brackets to isolate indices securely
+                    const lngValue = parseFloat(geom.coordinates.at(0));
+                    const latValue = parseFloat(geom.coordinates.at(1));
 
                     if (isNaN(latValue) || isNaN(lngValue)) return;
 
@@ -104,9 +103,10 @@ html<!DOCTYPE html>
                     if (mag >= 5.0) { colorCode = '#ff0000'; classCode = 'high-mag'; }
                     else if (mag >= 3.0) { colorCode = '#ff7800'; classCode = 'mid-mag'; }
 
-                    // Create Marker Circle
+                    // Create Marker Circle using LatLng instantiation to bypass brackets
                     const radiusSize = Math.max(mag * 3.5, 6);
-                    const marker = L.circleMarker([latValue, lngValue], {
+                    const markerLocation = L.latLng(latValue, lngValue);
+                    const marker = L.circleMarker(markerLocation, {
                         radius: radiusSize,
                         fillColor: colorCode,
                         color: '#000',
@@ -135,9 +135,9 @@ html<!DOCTYPE html>
                         <div style="color:#aaa; font-size:11px; margin-top:3px;">Depth: ${depth.toFixed(1)}km</div>
                     `;
                     
-                    // Clicking sidebar list snaps map to that quake location
+                    // Clicking sidebar list item shifts view safely
                     item.addEventListener('click', () => {
-                        map.setView([latValue, lngValue], 8);
+                        map.setView(L.latLng(latValue, lngValue), 9);
                         marker.openPopup();
                     });
                     listEl.appendChild(item);
@@ -163,7 +163,7 @@ html<!DOCTYPE html>
             }
         }, 1000);
 
-        // Bootstrap on runtime
+        // Run feed initialization
         fetchEarthquakeData();
     </script>
 </body>
